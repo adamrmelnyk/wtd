@@ -6,6 +6,23 @@ Wiki table downloader
 
 A toy CLI tool for scraping tables off of wikipedia and putting them into sqlite3 databases.
 
+## Running
+
+```shell
+wtd 0.1.0
+
+USAGE:
+    wtd <url> [file-name]
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+ARGS:
+    <url>          USAGE: wtd https://example.com
+    <file-name>    USAGE: wtd https://example.com myDataBase.db
+```
+
 ## Development
 
 * Ensure you have sqlite3 installed then try running `./test.sh` which will build, test, and insert a few tables into a db

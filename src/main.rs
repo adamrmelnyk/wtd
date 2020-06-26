@@ -90,7 +90,9 @@ impl fmt::Display for SqlTypes {
 #[tokio::main]
 async fn main() -> Result<(), WtdError> {
     let args = Command::from_args();
-    let database_name = args.file_name.unwrap_or_else(|| String::from(WIKI_DATABASE_FILE));
+    let database_name = args
+        .file_name
+        .unwrap_or_else(|| String::from(WIKI_DATABASE_FILE));
     match get_wiki_page(args.url, database_name).await {
         Ok(()) => {
             println!("Success!");
@@ -120,6 +122,7 @@ async fn get_wiki_page(url: String, database_name: String) -> Result<(), WtdErro
 }
 
 fn extract_data(body: &str, database_name: &str) -> Result<(), WtdError> {
+    // TODO: Get the tables first
     match get_table_headers_and_types_from_html(body) {
         Ok(headers) => match get_page_title_from_html(body).get(0) {
             Some(table_name) => {
@@ -132,11 +135,29 @@ fn extract_data(body: &str, database_name: &str) -> Result<(), WtdError> {
     }
 }
 
+/// Returns a Vec of tables
+// TODO: for future use so we can iterate through tables instead
+#[allow(dead_code)]
+fn get_tables(body: &str) -> Vec<String> {
+    let fragment = Html::parse_fragment(body);
+    let table_selector = Selector::parse(WIKI_TABLE_ELEMENT).unwrap();
+    fragment.select(&table_selector).map(|e| e.inner_html()).collect()
+}
+
+#[test]
+fn test_get_tables() {
+    // This test case also includes an inner table in the second table
+    // For whatever reason someone decided to make the index for this table it's own table
+    let html = std::fs::read_to_string("fixtures/twoTables.html").unwrap();
+    let tables = get_tables(&html);
+    assert_eq!(tables.len(), 3);
+}
+
 /// Returns a vector containing the title from a given html string
 /// Returns a vec of strings because it's possible that the selector finds more than one h1 tag
 fn get_page_title_from_html(body: &str) -> Vec<String> {
     let fragment = Html::parse_fragment(body);
-    let selector = Selector::parse("h1").unwrap();
+    let selector = Selector::parse("h1").unwrap(); // TODO: This should look for a caption on a table
     fragment.select(&selector).map(|e| e.inner_html()).collect()
 }
 
@@ -189,8 +210,8 @@ fn get_table_cells(body: &str) -> Vec<String> {
     let fragment = Html::parse_fragment(body);
     let table_selector = Selector::parse(WIKI_TABLE_ELEMENT).unwrap();
     let table = fragment.select(&table_selector).next().unwrap();
-
     let table_data_selector = Selector::parse("td").unwrap();
+
     table
         .select(&table_data_selector)
         .map(|e| e.inner_html())
@@ -230,8 +251,12 @@ fn clean_row(row: Vec<String>) -> Vec<String> {
             let removed_citations = remove_wiki_citation_links(&removed_apostrophe);
             let int_or_double = clean_integer_or_double_string(&removed_citations);
             let trimmed = int_or_double.trim();
-            if int_or_double.parse::<i64>().is_ok() { return int_or_double }
-            if int_or_double.parse::<f64>().is_ok() { return int_or_double }
+            if int_or_double.parse::<i64>().is_ok() {
+                return int_or_double;
+            }
+            if int_or_double.parse::<f64>().is_ok() {
+                return int_or_double;
+            }
             format!("'{}'", trimmed)
         })
         .collect()
@@ -277,9 +302,15 @@ fn derive_type(sample_datum: &str) -> SqlTypes {
     let html_cleaned_data = remove_html_tags(sample_datum);
     let removed_citations = remove_wiki_citation_links(&html_cleaned_data);
     let cleaned = clean_integer_or_double_string(&removed_citations);
-    if cleaned.parse::<i64>().is_ok() { return SqlTypes::INTEGER }
-    if cleaned.parse::<f64>().is_ok() { return SqlTypes::REAL }
-    if removed_citations.parse::<bool>().is_ok() { return SqlTypes::NUMERIC }
+    if cleaned.parse::<i64>().is_ok() {
+        return SqlTypes::INTEGER;
+    }
+    if cleaned.parse::<f64>().is_ok() {
+        return SqlTypes::REAL;
+    }
+    if removed_citations.parse::<bool>().is_ok() {
+        return SqlTypes::NUMERIC;
+    }
     SqlTypes::TEXT
 }
 
